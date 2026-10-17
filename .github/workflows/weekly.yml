@@ -1,0 +1,54 @@
+name: Weekly COT update
+
+on:
+  schedule:
+    # CFTC publishes Fridays 3:30pm New York time (19:30/20:30 UTC).
+    # Saturday run is a safety net; Monday run covers holiday-delayed releases.
+    - cron: "30 22 * * 5"
+    - cron: "0 8 * * 6"
+    - cron: "30 22 * * 1"
+  workflow_dispatch:
+    inputs:
+      force:
+        description: "Rebuild even if there is no new report"
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+concurrency:
+  group: cot-update
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - run: pip install -r requirements.txt
+
+      - name: Fetch CFTC data and rebuild site data
+        env:
+          SOCRATA_APP_TOKEN: ${{ secrets.SOCRATA_APP_TOKEN }}
+        run: python scripts/update.py ${{ inputs.force && '--force' || '' }}
+
+      - name: Commit and push if data changed
+        run: |
+          # Commit as the repo owner: Vercel Hobby only deploys commits from the account owner.
+          git config user.name  "${{ github.repository_owner }}"
+          git config user.email "${{ github.repository_owner }}@users.noreply.github.com"
+          git add site/data
+          if git diff --cached --quiet; then
+            echo "No new data."
+          else
+            git commit -m "COT update $(date -u +%Y-%m-%d)"
+            git push
+          fi
