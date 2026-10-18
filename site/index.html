@@ -2,14 +2,14 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>COT Positioning Monitor</title>
 <link rel="stylesheet" href="style.css">
 <script src="vendor/plotly-basic.min.js"></script>
 </head>
 <body>
 <header class="top">
-  <div>
+  <div class="brand">
     <h1>Commitments of Traders</h1>
     <p id="meta">Loading…</p>
   </div>
@@ -23,44 +23,76 @@
 </header>
 
 <main>
+  <div class="databar">
+    <div class="dgroup" id="databar-mode"><span class="databar-label">Data</span><div class="seg" id="mode-seg" role="group" aria-label="Data set"></div></div>
+    <div class="dgroup" id="databar-scope"><span class="databar-label">Markets</span><div class="seg" id="scope-seg" role="group" aria-label="Markets shown"></div></div>
+  </div>
+
   <section id="view-table">
-    <div class="controls">
-      <label data-tip="Which CFTC report to show. Legacy covers every market; Disaggregated covers commodities; TFF covers currencies, indices, rates and crypto.">Report <select id="t-report"></select></label>
-      <label data-tip="The group of traders whose positions are shown. The list changes with the selected report.">Trader category <select id="t-cat"></select></label>
-      <label data-tip="Choose what the 2Y / 3Y / 5Y percentiles are calculated on: raw net position, or net position as % of open interest (removes the effect of market growth).">Percentile of <select id="t-basis">
-        <option value="net">Net position</option>
-        <option value="oi">Net as % of open interest</option></select></label>
-      <label class="check" data-tip="Show only markets where at least one percentile (2Y, 3Y or 5Y) is in the top or bottom 10%, i.e. crowded positioning."><input type="checkbox" id="t-ext"> Only extremes (top or bottom 10%)</label>
-      <button class="btn" id="t-export" data-tip="Download the table as shown (current report, category and filters) as a CSV file that opens in Excel.">Export CSV</button>
+    <div class="toolbar">
+      <div class="tb-row tb-top">
+        <div class="search" data-tip="Type a market name or ticker (for example gold, GC, bitcoin, lithium). Searching always covers all markets."><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="9" cy="9" r="6"/><path d="M14 14l4 4"/></svg><input type="search" id="t-search" placeholder="Search markets or tickers" aria-label="Search markets"></div>
+        <div class="chips" id="t-quick" role="group" aria-label="Quick view"></div>
+        <select class="exp tb-export" id="t-export" aria-label="Export table" data-tip="Download the table as shown: CSV, Excel with colors, or a PNG image ready to share.">
+          <option value="">Export ▾</option><option value="csv">CSV (raw numbers)</option><option value="xlsx">Excel (.xlsx, colored)</option><option value="png">Image (PNG)</option></select>
+      </div>
+      <div class="chips scroll" id="t-chips" role="group" aria-label="Market group"></div>
+      <button class="optbtn" id="t-optbtn" type="button" aria-expanded="false" aria-controls="t-fields"><span>Filters</span><span class="optsum" id="t-optsum"></span></button>
+      <div class="tb-row tb-fields" id="t-fields">
+        <label class="field" data-tip="Which CFTC report to show. Legacy covers every market; Disaggregated covers commodities; TFF covers currencies, indices, rates and crypto.">Report <select id="t-report"></select></label>
+        <label class="field" data-tip="The group of traders whose positions are shown. The list changes with the selected report.">Trader category <select id="t-cat"></select></label>
+        <label class="field" data-tip="Choose what the 2Y / 3Y / 5Y percentiles are calculated on: raw net position, or net position as % of open interest (removes the effect of market growth).">Percentile of <select id="t-basis">
+          <option value="net">Net position</option>
+          <option value="oi">Net as % of open interest</option></select></label>
+        <label class="field mobile-only" id="t-sortwrap">Sort <select id="t-sort"></select></label>
+      </div>
     </div>
-    <div class="hint">
-      <p>Percentile = where this week's net position sits within the last 2, 3 and 5 years (100 = most net long in the window).</p>
-      <p>Click a row to open its chart.</p>
-      <button class="guidebtn dark" data-open-guide data-tip="Open the full user guide: reports, columns, percentiles and charts.">Full guide</button>
+    <div class="strip">
+      <div class="hint">
+        <p>Click a row to open its chart. <span class="hide-m">Click a column heading to sort.</span></p>
+        <button class="guidebtn dark" data-open-guide data-tip="Open the full user guide: reports, columns, percentiles and charts.">Full guide</button>
+      </div>
+      <div class="strip-tools">
+        <span id="t-count" class="count"></span>
+        <span id="t-collapsetools"><button class="linkbtn" id="t-collapse" data-tip="Collapse all market groups.">Collapse all</button>
+        <button class="linkbtn" id="t-expand" data-tip="Expand all market groups.">Expand all</button></span>
+      </div>
     </div>
-    <div class="tablewrap"><table id="cot"></table></div>
+    <div class="tablewrap" id="t-wrap"><table id="cot"></table></div>
   </section>
 
   <section id="view-chart" hidden>
-    <div class="controls">
-      <label data-tip="Choose the market to chart.">Market <select id="c-market"></select></label>
-      <label data-tip="Legacy, or the specialised report for this market (Disaggregated for commodities, TFF for financials).">Report <select id="c-report"></select></label>
-      <label data-tip="Trader category to plot, or all categories together (net positions only).">Category <select id="c-cat"></select></label>
-      <label data-tip="Net = long minus short. Long and Short can also be plotted alone or together. Extreme zones are drawn for Net, Long or Short of a single category.">Show <select id="c-metric">
-        <option value="net">Net</option><option value="long">Long</option>
-        <option value="short">Short</option><option value="both">Long and short</option></select></label>
-      <label data-tip="Contracts = raw positions. % of open interest removes the effect of market growth over the years.">Unit <select id="c-unit">
-        <option value="contracts">Contracts</option><option value="oi">% of open interest</option></select></label>
-      <label data-tip="How far back the chart looks. Percentiles and extreme zones are calculated inside this window.">Window <select id="c-win">
-        <option value="5" selected>5 years</option><option value="3">3 years</option>
-        <option value="2">2 years</option><option value="all">All three (2, 3, 5 years)</option></select></label>
+    <div class="toolbar">
+      <div class="tb-row tb-top tb-start">
+        <button class="btn" id="c-back" type="button" data-tip="Back to the table, where you left it.">← Table</button>
+        <div class="search" data-tip="Type part of a market name or ticker to narrow the Market list."><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="9" cy="9" r="6"/><path d="M14 14l4 4"/></svg><input type="search" id="c-find" placeholder="Find a market, e.g. cobalt" aria-label="Find a market"></div>
+        <label class="field grow" data-tip="Choose the market to chart."><span id="c-count-wrap">Market</span> <select id="c-market"></select></label>
+        <div class="stepper">
+          <button type="button" id="c-prev" class="iconbtn" aria-label="Previous market" data-tip="Previous market (same order as the table).">‹</button>
+          <button type="button" id="c-next" class="iconbtn" aria-label="Next market" data-tip="Next market (same order as the table).">›</button>
+          <button type="button" id="c-star" class="starbtn" data-tip="Add this market to My list."></button>
+        </div>
+      </div>
+      <button class="optbtn" id="c-optbtn" type="button" aria-expanded="false" aria-controls="c-fields"><span>Chart options</span><span class="optsum" id="c-optsum"></span></button>
+      <div class="tb-row tb-fields" id="c-fields">
+        <label class="field" data-tip="Legacy, or the specialised report for this market (Disaggregated for commodities, TFF for financials).">Report <select id="c-report"></select></label>
+        <label class="field" data-tip="Trader category to plot, or all categories together (net positions only).">Category <select id="c-cat"></select></label>
+        <label class="field" data-tip="Net = long minus short. Long and Short can also be plotted alone or together. Extreme zones are drawn for Net, Long or Short of a single category.">Show <select id="c-metric">
+          <option value="net">Net</option><option value="long">Long</option>
+          <option value="short">Short</option><option value="both">Long and short</option></select></label>
+        <label class="field" data-tip="Contracts = raw positions. % of open interest removes the effect of market growth over the years.">Unit <select id="c-unit">
+          <option value="contracts">Contracts</option><option value="oi">% of open interest</option></select></label>
+        <label class="field" data-tip="How far back the chart looks. Percentiles and extreme zones are calculated inside this window.">Window <select id="c-win">
+          <option value="5" selected>5 years</option><option value="3">3 years</option>
+          <option value="2">2 years</option><option value="all">All three (2, 3, 5 years)</option></select></label>
+      </div>
     </div>
     <div id="panels"></div>
   </section>
 </main>
 
 <footer class="foot">
-  <span>Data: CFTC Commitments of Traders, Futures Only. Positions as of Tuesday, released Friday.</span>
+  <span>Data: CFTC Commitments of Traders. Positions as of Tuesday, released Friday.</span>
   <span>Developed by Mohamad Dorali · <a href="mailto:Dorali.mohamad@gmail.com">Dorali.mohamad@gmail.com</a></span>
 </footer>
 
@@ -71,11 +103,24 @@
     <div class="ghead"><h2>User guide</h2><button id="guide-close" aria-label="Close guide">Close</button></div>
     <div class="gbody">
       <h3>What this tool shows</h3>
-      <p>Weekly positioning of futures traders from the CFTC Commitments of Traders (COT) reports, and where today's positioning sits compared with the last 2, 3 and 5 years. Data is Futures Only. Positions are as of Tuesday and published on Friday afternoon (New York time); the page updates automatically after each release.</p>
+      <p>Weekly positioning of futures traders from the CFTC Commitments of Traders (COT) reports, and where today's positioning sits compared with the last 2, 3 and 5 years. Positions are as of Tuesday and published on Friday afternoon (New York time); the page updates automatically after each release.</p>
+
+      <h3>Data: Futures Only or Futures + Options</h3>
+      <p>The <b>Data</b> switch at the top of the page, above the filters, switches between <b>Futures Only</b> and <b>Futures + Options</b> (the CFTC combined reports, which add options positions converted to futures equivalents). Every table, percentile and chart follows the selected data set. Open interest differs between the two, so values and percentiles differ slightly.</p>
+
+      <h3>Finding your way around</h3>
+      <p><b>Markets</b> switch (top of the page): <b>Featured</b> shows the main markets, <b>All</b> shows every active contract, and <b>My list</b> shows the markets you starred (☆). Starred markets are remembered in your browser. Searching always looks across all markets.</p>
+      <p><b>Quick view</b> buttons: <b>Extremes</b> keeps markets where a percentile is at or above 90 or at or below 10; <b>Biggest weekly moves</b> lists the 30 markets whose net position changed most this week, measured as a share of open interest.</p>
+      <p><b>Trend</b> column: a small line of the net position over the last 5 years, scaled to its own range; the dot is the latest value. It is the same view as the percentile, just visual.</p>
+      <p><b>Sharing:</b> the page address always contains the current view (data set, filters, market, chart settings), so you can copy it and send it, and the Back button works as expected.</p>
+
+      <h3>Markets</h3>
+      <p>All active contracts in the CFTC reports are included (choose <b>All</b> in the Markets switch) and grouped (currencies, crypto, equity indices, rates, metals, energy, natural gas, power and environmental, grains, softs, livestock, dairy, other). New contracts appear automatically. Use the <b>search box</b> (names and tickers such as GC, CL, ES) and the <b>group buttons</b> to narrow the table, click a column heading to sort within each group, and click a group name to collapse or expand it (Collapse all and Expand all are above the table).</p>
+      <p>Some markets are young or thinly traded and have less than 5 years of data. For these, the percentile uses all the history available inside the window and its percentile is based on fewer weeks than the window; hover over the percentile to see how many. A percentile is shown once there are at least 26 weeks of data. Charts simply start where the data starts.</p>
 
       <h3>Reports and trader categories</h3>
       <p><b>Legacy</b> covers every market. <b>Non-Commercial</b> are large speculators (hedge funds and similar), <b>Commercial</b> are hedgers using futures against a physical or financial business, and <b>Non-Reportable</b> are small traders below the reporting threshold.</p>
-      <p><b>Disaggregated</b> covers commodities (metals, energy, grains, softs, livestock): <b>Managed Money</b> (funds and CTAs), <b>Producer/Merchant</b>, <b>Swap Dealers</b>, <b>Other Reportables</b>, <b>Non-Reportable</b>.</p>
+      <p><b>Disaggregated</b> covers commodities (metals, energy, agriculture): <b>Managed Money</b> (funds and CTAs), <b>Producer/Merchant</b>, <b>Swap Dealers</b>, <b>Other Reportables</b>, <b>Non-Reportable</b>.</p>
       <p><b>TFF</b> (Traders in Financial Futures) covers currencies, equity indices, rates and crypto: <b>Leveraged Funds</b> (hedge funds), <b>Asset Manager</b> (institutional), <b>Dealer/Intermediary</b>, <b>Other Reportables</b>, <b>Non-Reportable</b>.</p>
 
       <h3>Table columns</h3>
@@ -88,14 +133,17 @@
         <li><b>Δ Net (week)</b> and <b>% Chg</b>: change in net position since the previous report, in contracts and as a percent of last week's absolute net.</li>
         <li><b>Pctl 2Y / 3Y / 5Y</b>: percentile rank of the current value inside the last 2, 3 or 5 years. 100 is the most net long of the window, 0 the most net short, 50 the middle. Colors run from red (low) through white to blue (high).</li>
       </ul>
-      <p>The <b>Percentile of</b> selector switches the percentiles between raw net position and net as % of open interest. <b>Only extremes</b> keeps markets where any percentile is at or above 90 or at or below 10.</p>
+      <p>The <b>Percentile of</b> selector switches the percentiles between raw net position and net as % of open interest.</p>
 
       <h3>Charts</h3>
-      <p>Click a row, or open the Charts tab. For a single category and Net, Long or Short, the chart shows the line over the chosen window with: the <b>blue zone</b> above the 90th percentile and the <b>red zone</b> below the 10th percentile (the extreme zones), dotted <b>max</b> and <b>min</b> lines, a grey median line, and a marker for the latest value with its percentile. Choose "All three" to see the 2, 3 and 5 year windows stacked; the default is 5 years.</p>
+      <p>Click a row, or open the Charts tab (use <b>Find</b> to locate a market quickly). Use <b>← Table</b> to go back and the arrows next to the market name to step through the markets in the same order as the table. For a single category and Net, Long or Short, the chart shows the line over the chosen window with: the <b>blue zone</b> above the 90th percentile and the <b>red zone</b> below the 10th percentile (the extreme zones), dotted <b>max</b> and <b>min</b> lines, a grey median line, and a marker for the latest value with its percentile. Choose "All three" to see the 2, 3 and 5 year windows stacked; the default is 5 years.</p>
       <p>Long and short together, or all categories together, are drawn as plain lines without zones.</p>
 
       <h3>Exporting</h3>
-      <p><b>Table:</b> the Export CSV button downloads exactly what is shown (selected report, category and filters) with raw numbers; it opens directly in Excel. <b>Charts:</b> each chart has an Export menu with PNG, JPEG, WebP and SVG images (with title and source line added) and a CSV of the plotted data for that window.</p>
+      <p><b>Table:</b> the Export menu offers <b>CSV</b> (raw numbers), <b>Excel</b> (.xlsx with the same colors as the table) and a <b>PNG image</b> of the table that is ready to share. All three contain exactly what is shown (selected data set, report, category and filters). <b>Charts:</b> each chart has an Export menu with PNG, JPEG, WebP and SVG images (with title and source line added) and a CSV of the plotted data for that window.</p>
+
+      <h3>On a phone or tablet</h3>
+<p>Markets are shown as cards (percentiles at the top, then net position and weekly change); use <b>Sort</b> to reorder them and <b>Filters</b> to change report, category and basis. Touch and hold a label or button to see its help text.</p>
 
       <h3>How to read it</h3>
       <p>A high percentile means the category is unusually long compared with the window; a low one means unusually short. Extreme readings show crowded positioning, which is context for risk and sentiment rather than a timing signal on its own. When comparing across long periods, prefer the % of open interest view.</p>

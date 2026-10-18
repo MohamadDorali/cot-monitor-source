@@ -36,6 +36,8 @@ jobs:
       - run: pip install -r requirements.txt
 
       - name: Fetch CFTC data and rebuild site data
+        id: update
+        continue-on-error: true      # still publish whichever data set (Futures Only / Combined) succeeded
         env:
           SOCRATA_APP_TOKEN: ${{ secrets.SOCRATA_APP_TOKEN }}
         run: python scripts/update.py ${{ inputs.force && '--force' || '' }}
@@ -52,3 +54,9 @@ jobs:
             git commit -m "COT update $(date -u +%Y-%m-%d)"
             git push
           fi
+
+      - name: Fail the run if the update reported an error
+        if: steps.update.outcome == 'failure'
+        run: |
+          echo "scripts/update.py failed for at least one data set. See the log above."
+          exit 1
