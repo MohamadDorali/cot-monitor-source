@@ -1,0 +1,1 @@
+{"modes":[{"key":"futures","label":"Futures Only"},{"key":"combined","label":"Futures + Options"}],"default":"futures"}
